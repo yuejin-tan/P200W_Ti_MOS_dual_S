@@ -27,8 +27,8 @@
 #define MATLAB_PARA_Iloop_bw_factor 0.166667
 #define MATLAB_PARA_Upi_max 13.856406
 #define MATLAB_PARA_tick_dead 100.000000
-#define MATLAB_PARA_tick_db_comp 100.000000
-#define MATLAB_PARA_db_Ithd 0.500000
+#define MATLAB_PARA_tick_db_comp 75.000000
+#define MATLAB_PARA_db_Ithd 1.000000
 #define MATLAB_PARA_kp_wloop 0.009102
 #define MATLAB_PARA_ki_wloop 0.150629
 #define MATLAB_PARA_Wpi_max 1.200000

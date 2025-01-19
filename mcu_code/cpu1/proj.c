@@ -218,7 +218,7 @@ int16_t CH2_Vv_raw = 0;
 int16_t CH2_Vw_raw = 0;
 
 uint16_t thetaEnco_raw = 0;
-uint16_t thetaEnco_raw_offset = 10500;
+uint16_t thetaEnco_raw_offset = 5200;
 
 uint16_t thetaEnco_raw2 = 0;
 uint16_t thetaEnco_raw_offset2 = 2100;
@@ -323,7 +323,7 @@ float db_cmp_tick = MATLAB_PARA_tick_db_comp * 2;
 float db_cmp_vds = MATLAB_PARA_Vdf + MATLAB_PARA_Vsat;
 
 int16_t CH2_ext_fcn = 0;
-float db2_Ithd_1 = 1.0f / MATLAB_PARA_db_Ithd;
+float db2_Ithd_1 = 2.0; // 实验值
 // 注意，由于是强行兼容的，故死区补偿的参数需*2
 float db2_cmp_tick = MATLAB_PARA_tick_db_comp * 2;
 float db2_cmp_vds = MATLAB_PARA_Vdf + MATLAB_PARA_Vsat;
@@ -827,6 +827,8 @@ static inline void protectIsrTask()
         if (filtHWFaultCnt > 3)
         {
             IProtectFlg_CH1 |= 0x10u;
+            // 触发读取错误位
+            drv8305_1.ii = 0;
         }
     }
     else
@@ -924,7 +926,7 @@ static inline void protectIsrTask2()
         {
             IProtectFlg_CH2 |= 0x10u;
             // 触发读取错误位
-            drv8305_1.ii = 0;
+            drv8305_2.ii = 0;
         }
     }
     else

@@ -366,9 +366,9 @@ static void cfg_epwm_1pha2(volatile struct EPWM_REGS* EPwmxRegs)
     EPwmxRegs->DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;
     EPwmxRegs->DBCTL2.bit.SHDWDBCTLMODE = 0;
     EPwmxRegs->DBCTL2.bit.LOADDBCTLMODE = TYJ_DB_LOAD_ZERO_PRD;
-    // 死区时间配置，定死1us，不随simulink变化
-    EPwmxRegs->DBRED.bit.DBRED = 100;
-    EPwmxRegs->DBFED.bit.DBFED = 100;
+    // 死区时间配置
+    EPwmxRegs->DBRED.bit.DBRED = PWM_DEADBAND_TICKS;
+    EPwmxRegs->DBFED.bit.DBFED = PWM_DEADBAND_TICKS;
 
     // GLD与EPWMXLINK不用
 
@@ -402,8 +402,9 @@ static void init_ePWM()
     cfg_epwm_1pha2(&EPwm1Regs);
     cfg_epwm_1pha2(&EPwm2Regs);
     cfg_epwm_1pha2(&EPwm3Regs);
-    // epwm1 不需要
+    // epwm1 同步源
     EPwm1Regs.TBCTL.bit.PHSEN = TB_DISABLE;
+    EPwm1Regs.TBCTL.bit.SYNCOSEL = TB_CTR_ZERO;
 
     // ch2 对拖平台
     cfg_epwm_1pha2(&EPwm4Regs);
@@ -411,6 +412,8 @@ static void init_ePWM()
     cfg_epwm_1pha2(&EPwm6Regs);
     // 两通道移相180度
     EPwm4Regs.TBPHS.bit.TBPHS = vPWM_LOAD_VAL_I / 2;
+    EPwm4Regs.TBCTL.bit.PHSDIR = TB_DOWN;
+    EPwm4Regs.TBCTL.bit.SYNCOSEL = TB_CTR_ZERO;
 
 
     // 配置EPWM触发ADC事件，注意这里开关频率是20k，但是是按10k双采双更兼容计算的
@@ -760,7 +763,7 @@ static void init_board_gpio()
     // CH1 上面
     // DRV8305 CH1 fault gpio19
     GPIO_SetupPinMux(19, GPIO_MUX_CPU1, 0);
-    GPIO_SetupPinOptions(139, GPIO_INPUT, GPIO_PULLUP | GPIO_QUAL6);
+    GPIO_SetupPinOptions(19, GPIO_INPUT, GPIO_PULLUP | GPIO_QUAL6);
 
     // DRV8305 CH1 WAKE gpio125
     // 不考虑低功耗
@@ -870,8 +873,6 @@ void bsp_init_chip_devs()
 
 void bsp_init_board_devs()
 {
-    drv8305_init(&drv8305_1);
-    drv8305_init2(&drv8305_2);
 
     return;
 }
@@ -987,10 +988,14 @@ void bsp_start()
         scd_call_in_mainLoop();
         cdb_ack_cpu1();
 #endif
-
     }
+
     // 等待10ms，保证drv8305完成初始化
     DELAY_US(10000);
+    // 上电以后再配置
+    drv8305_init(&drv8305_1);
+    drv8305_init2(&drv8305_2);
+
     // 起动DRV8305 ch1
     bsp_POWER_EN_CH1(1);
     // 起动DRV8305 ch2
