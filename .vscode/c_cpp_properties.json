@@ -1,0 +1,45 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:/ti/ccs1281/ccs/tools/compiler/ti-cgt-c2000_22.6.1.LTS/include/",
+                "C:/ti/ccs1281/ccs/tools/compiler/ti-cgt-c2000_22.6.1.LTS/include/stlport",
+                "${workspaceFolder}/",
+                "${workspaceFolder}/mcu_code/cpu1/",
+                "${workspaceFolder}/mcu_code/cpu2/",
+                "${workspaceFolder}/mcu_code/cla12/",
+                "${workspaceFolder}/../share_2837x/",
+                "${workspaceFolder}/../share_2837x/cpu1/",
+                "${workspaceFolder}/../share_2837x/cpu2/",
+                "${workspaceFolder}/../share_2837x/cla12/",
+                "${workspaceFolder}/../share_2837x/algo/",
+                "${workspaceFolder}/../share_2837x/lib/",
+                "${workspaceFolder}/../share_2837x/ti_driver/driverlib",
+                "${workspaceFolder}/../share_2837x/ti_driver/common_include",
+                "${workspaceFolder}/../share_2837x/ti_driver/header_include"
+            ],
+            "defines": [
+                "TYJ_TEST",
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "_SCD_ENABLE",
+                "__TMS320C2000__",
+                "__TMS320C28XX__",
+                "__TMS320C28XX_FPU32__",
+                "__TMS320C28XX_TMU__",
+                "CPU1",
+                "_FLASH"
+            ],
+            "compilerPath": "",
+            "intelliSenseMode": "gcc-arm",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "forcedInclude": [
+                "${workspaceFolder}/../share_2837x/fake.h"
+            ]
+        }
+    ],
+    "version": 4
+}
