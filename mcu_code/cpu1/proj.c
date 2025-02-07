@@ -130,7 +130,6 @@ float rdc_inj_all = 0;
 float rdc_comp_all = 0;
 float thetaEst = 0;
 float thetaEst2 = 0;
-float Is2_f2 = 0;
 
 float rdc_Acos_1 = -4.3545e-04;
 float rdc_Asin_1 = 0.0020;
@@ -648,6 +647,7 @@ static inline void sigSampTask()
     }
 
     trans3_uvw2dq0(&CH1_Ifbk, &CH1_thetaI);
+    transX_dq2abs2(&CH1_Ifbk);
     CH1_Ifilt.d = LPF_Ord2_update(&CH1_IdFilt, CH1_Ifbk.d);
     CH1_Ifilt.q = LPF_Ord2_update(&CH1_IqFilt, CH1_Ifbk.q);
     CH1_Ifilt.abdq0 = LPF_Ord2_update(&CH1_I0Filt, CH1_Ifbk.abdq0);
@@ -664,12 +664,10 @@ static inline void sigSampTask()
         // 误差辨识
         CH1_Ifilt2.d = LPF_Ord2_update_kahan(&CH1_IdFilt_2, CH1_Ifbk.d);
         CH1_Ifilt2.q = LPF_Ord2_update_kahan(&CH1_IqFilt_2, CH1_Ifbk.q);
-
-        Is2_f2 = CH1_Ifilt2.d * CH1_Ifilt2.d + CH1_Ifilt2.q * CH1_Ifilt2.q;
         // 防止除零
-        Is2_f2 = fmaxf(Is2_f2, 1.0f);
+        CH1_Ifilt2.abs2 = fmaxf(transX_dq2abs2(&CH1_Ifilt2), 1.0f);
 
-        thetaEst = (CH1_Ifbk.d * CH1_Ifilt2.q - CH1_Ifbk.q * CH1_Ifilt2.d) * (float)(1.0f / MATLAB_PARA_RDC2ELE_RATIO) / Is2_f2;
+        thetaEst = (CH1_Ifbk.d * CH1_Ifilt2.q - CH1_Ifbk.q * CH1_Ifilt2.d) * (float)(1.0f / MATLAB_PARA_RDC2ELE_RATIO) / CH1_Ifilt2.abs2;
         thetaEst2 = LMSanfUpdate(&LMSanfThetaM, thetaEnco_raw, thetaEst);
     }
 }
@@ -784,6 +782,7 @@ static inline void sigSampTask2()
     }
 
     trans3_uvw2dq0(&CH2_Ifbk, &CH2_thetaI);
+    transX_dq2abs2(&CH2_Ifbk);
     CH2_Ifilt.d = LPF_Ord2_update(&CH2_IdFilt, CH2_Ifbk.d);
     CH2_Ifilt.q = LPF_Ord2_update(&CH2_IqFilt, CH2_Ifbk.q);
     CH2_Ifilt.abdq0 = LPF_Ord2_update(&CH2_I0Filt, CH2_Ifbk.abdq0);
@@ -804,15 +803,15 @@ static inline void protectIsrTask()
         protectCalc_THD_HL(&curProtect_CH1, CH1_Ifbk.U) |
         protectCalc_THD_HL(&curProtect_CH1, CH1_Ifbk.V) |
         protectCalc_THD_HL(&curProtect_CH1, CH1_Ifbk.W) |
-        protectCalc_INTG2(&curProtect_CH1, CH1_Ifbk.q * CH1_Ifbk.q + CH1_Ifbk.d * CH1_Ifbk.d) |
+        protectCalc_INTG2(&curProtect_CH1, CH1_Ifbk.abs2) |
         0;
 
     // 部分模式进行电流跟踪保护
     if (CH1_cur_mode == CM_I_loop)
     {
         IProtectFlg_CH1 |=
-            protectCalc_FOLW2(&curProtect_CH1, CH1_Ifbk.q, targetIq_CH1) |
-            protectCalc_FOLW2(&curProtect_CH1, CH1_Ifbk.d, targetId_CH1) |
+            protectCalc_FOLW2(&curProtect_CH1, CH1_Ifilt.q, targetIq_CH1) |
+            protectCalc_FOLW2(&curProtect_CH1, CH1_Ifilt.d, targetId_CH1) |
             0;
     }
     else
@@ -902,15 +901,15 @@ static inline void protectIsrTask2()
         protectCalc_THD_HL(&curProtect_CH2, CH2_Ifbk.U) |
         protectCalc_THD_HL(&curProtect_CH2, CH2_Ifbk.V) |
         protectCalc_THD_HL(&curProtect_CH2, CH2_Ifbk.W) |
-        protectCalc_INTG2(&curProtect_CH2, CH2_Ifbk.q * CH2_Ifbk.q + CH2_Ifbk.d * CH2_Ifbk.d) |
+        protectCalc_INTG2(&curProtect_CH2, CH2_Ifbk.abs2) |
         0;
 
     // 部分模式进行电流跟踪保护
     if (CH2_cur_mode == CM_I_loop)
     {
         IProtectFlg_CH2 |=
-            protectCalc_FOLW2(&curProtect_CH2, CH2_Ifbk.q, targetIq_CH2) |
-            protectCalc_FOLW2(&curProtect_CH2, CH2_Ifbk.d, targetId_CH2) |
+            protectCalc_FOLW2(&curProtect_CH2, CH2_Ifilt.q, targetIq_CH2) |
+            protectCalc_FOLW2(&curProtect_CH2, CH2_Ifilt.d, targetId_CH2) |
             0;
     }
     else

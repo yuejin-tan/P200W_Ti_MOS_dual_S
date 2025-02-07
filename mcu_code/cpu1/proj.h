@@ -117,7 +117,6 @@ extern float rdc_inj_all;
 extern float rdc_comp_all;
 extern float thetaEst;
 extern float thetaEst2;
-extern float Is2_f2;
 
 extern float rdc_Acos_1;
 extern float rdc_Asin_1;
