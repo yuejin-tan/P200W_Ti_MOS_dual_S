@@ -22,6 +22,8 @@
 #include "oeca.h"
 #include "adrc.h"
 #include "lms_anf.h"
+#include "MRASwr.h"
+#include "kalmanFilt_w.h"
 
 #include "proj.h"
 #include "bsp_inline.h"
@@ -120,7 +122,15 @@ struct LPF_Ord1_2_struct CH1_IdFilt_2;
 struct LPF_Ord1_2_struct CH1_IqFilt_2;
 struct Trans_struct CH1_Ifilt2;
 
-// bit0 注入谐波 bit1 补偿谐波 bit2 谐波辨识
+// 位置误差在线补偿
+struct PIctrl_struct wPI;
+struct PIctrl_struct RsPI;
+struct MRASwr_struct MRASwr;
+struct Trans_struct CH1_Psi;
+
+struct KFw_struct KFw;
+
+// bit0 注入谐波 bit1 补偿谐波 bit2 谐波辨识 bit3 在线补偿
 int16_t CH1_angle_mode2 = 0;
 
 int16_t rdc_inj_raw = 0;
@@ -463,6 +473,13 @@ static void cfg_clk_util(uint16_t pwm_freq)
     LMSanfInit(&LMSanfThetaM);
     LPF_Ord1_2_cfg(&CH1_IdFilt_2, LPF_KAHAN_2_t, vCTRL_TS, 5.0, 0);
     LPF_Ord1_2_cfg(&CH1_IqFilt_2, LPF_KAHAN_2_t, vCTRL_TS, 5.0, 0);
+
+    // 位置误差在线补偿
+    PIctrl_init(&wPI, 100, 10000, 0, 0, 0);
+    PIctrl_init(&RsPI, 0, 0.0005, 0, MATLAB_PARA_Rall * 3.0, MATLAB_PARA_Rall * 0.3);
+    MRAS_wr_init(&MRASwr, &wPI, &RsPI, 6.28 * 20.0, MATLAB_PARA_Rall, 100.0);
+
+    KFw_init(&KFw, 1, (2.0 * M_PI * 2.0 * M_PI / 12.0), 2e-4, 2e-3, 1e-4);
 }
 
 void ctrl_init()
@@ -669,6 +686,13 @@ static inline void sigSampTask()
 
         thetaEst = (CH1_Ifbk.d * CH1_Ifilt2.q - CH1_Ifbk.q * CH1_Ifilt2.d) * (float)(1.0f / MATLAB_PARA_RDC2ELE_RATIO) / CH1_Ifilt2.abs2;
         thetaEst2 = LMSanfUpdate(&LMSanfThetaM, thetaEnco_raw, thetaEst);
+    }
+
+    if (CH1_angle_mode2 & 0x8u)
+    {
+        // 位置误差在线补偿
+        MRAS_wr_update(&MRASwr, &CH1_Utar, &CH1_Ifbk);
+        KFw_update(&KFw, MRASwr.thetaOut * (float)(2.0 * M_PI), CH1_thetaI.theta * (float)(2.0 * M_PI));
     }
 }
 
