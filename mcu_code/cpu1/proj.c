@@ -24,6 +24,7 @@
 #include "lms_anf.h"
 #include "MRASwr.h"
 #include "kalmanFilt_w.h"
+#include "psi_lut.h"
 
 #include "proj.h"
 #include "bsp_inline.h"
@@ -116,6 +117,16 @@ struct encoder_struct encoder2;
 struct DRV8305_struct drv8305_1;
 struct DRV8305_struct drv8305_2;
 
+// 磁链标定与LUT补偿
+struct LPF_Ord1_2_struct CH1_UTarFiltd;
+struct LPF_Ord1_2_struct CH1_UTarFiltq;
+struct Trans_struct CH1_UFilt;
+struct Trans_struct CH1_psi;
+
+float CH1_Ld4PI = MATLAB_PARA_Ld;
+float CH1_Lq4PI = MATLAB_PARA_Lq;
+float CH1_thetaE_inter = 0;
+
 // 位置谐波
 struct LMSanf_struct LMSanfThetaM;
 struct LPF_Ord1_2_struct CH1_IdFilt_2;
@@ -130,7 +141,7 @@ struct Trans_struct CH1_Psi;
 
 struct KFw_struct KFw;
 
-// bit0 注入谐波 bit1 补偿谐波 bit2 谐波辨识 bit3 在线补偿
+// bit0 注入谐波 bit1 补偿谐波 bit2 谐波辨识 bit3 在线补偿 bit4 位置切换
 int16_t CH1_angle_mode2 = 0;
 
 int16_t rdc_inj_raw = 0;
@@ -324,7 +335,9 @@ uint16_t filtHWFaultCnt2 = 0;
 
 // bit 0 1: udc var
 // bit 1 2: Udq comp with fbk val
-// bit 3 4: deadBand comp
+// bit 2 4: deadBand comp
+// bit 3 8: Udq comp with LUT (ch1 only)
+// bit 4 16: PI Para auto (ch1 only)
 int16_t CH1_ext_fcn = 0;
 float db_Ithd_1 = 1.0f / MATLAB_PARA_db_Ithd;
 // 注意，由于是强行兼容的，故死区补偿的参数需*2
@@ -469,6 +482,10 @@ static void cfg_clk_util(uint16_t pwm_freq)
     PIctrl_Iloop_cfg(&CH2_IdPI, MATLAB_PARA_Iloop_bw_factor, DYNO_PARA_Ld, DYNO_PARA_Rall, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
     PIctrl_Iloop_cfg(&CH2_IqPI, MATLAB_PARA_Iloop_bw_factor, DYNO_PARA_Lq, DYNO_PARA_Rall, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
 
+    // 磁链标定
+    LPF_Ord1_2_cfg(&CH1_UTarFiltd, LPF_KAHAN_2_t, vCTRL_TS, 10.0, 0);
+    LPF_Ord1_2_cfg(&CH1_UTarFiltq, LPF_KAHAN_2_t, vCTRL_TS, 10.0, 0);
+
     // 位置误差提取
     LMSanfInit(&LMSanfThetaM);
     LPF_Ord1_2_cfg(&CH1_IdFilt_2, LPF_KAHAN_2_t, vCTRL_TS, 5.0, 0);
@@ -477,7 +494,7 @@ static void cfg_clk_util(uint16_t pwm_freq)
     // 位置误差在线补偿
     PIctrl_init(&wPI, 100, 10000, 0, 0, 0);
     PIctrl_init(&RsPI, 0, 0.0005, 0, MATLAB_PARA_Rall * 3.0, MATLAB_PARA_Rall * 0.3);
-    MRAS_wr_init(&MRASwr, &wPI, &RsPI, 6.28 * 20.0, MATLAB_PARA_Rall, 100.0);
+    MRAS_wr_init(&MRASwr, &wPI, &RsPI, 6.28 * 20.0, MATLAB_PARA_Rall, 4.0);
 
     KFw_init(&KFw, 1, (2.0 * M_PI * 2.0 * M_PI / 12.0), 2e-4, 2e-3, 1e-4);
 }
@@ -561,6 +578,10 @@ static inline void sigSampTask()
         thetaEnco_raw -= rdc_comp_raw;
     }
 
+    // 磁链标定用电压变换，刚好在此周期生效
+    CH1_UFilt.d = LPF_Ord2_update(&CH1_UTarFiltd, CH1_Utar.d);
+    CH1_UFilt.q = LPF_Ord2_update(&CH1_UTarFiltq, CH1_Utar.q);
+
     // ADC signals
     CH1_Iu_raw = bsp_get_CH1_Iu_adcRaw();
     CH1_Iv_raw = bsp_get_CH1_Iv_adcRaw();
@@ -588,18 +609,32 @@ static inline void sigSampTask()
 
     // calculate omega 可以用上次的角度值，区别不大
     omegaMfbk = speedCal_update(&omegaEcal, getThetaEUint(thetaEnco_raw)) * (float)(1.0 / MATLAB_PARA_RDC2ELE_RATIO);
+    CH1_thetaE_inter = getThetaEpu(thetaEnco_raw - thetaEnco_raw_offset);
+
+    if (CH1_angle_mode2 & 0x8u)
+    {
+        // 位置误差在线补偿
+        MRAS_wr_update(&MRASwr, &CH1_Utar, &CH1_Ifbk);
+        KFw_update(&KFw, MRASwr.thetaOut * (float)(2.0 * M_PI), getThetaESI(thetaEnco_raw - thetaEnco_raw_offset));
+
+        if (CH1_angle_mode2 & 0x10u)
+        {
+            CH1_thetaE_inter = KFw.x_k[0] * (float)(1.0 / 2.0 / M_PI);
+            speedCal_assign(&omegaEcal, KFw.x_k[1]);
+        }
+    }
 
     // 角度计算
     switch (CH1_angle_mode)
     {
     case AM_sync_comp:
-        thetaCal_setTheta_Uint(&CH1_thetaI, getThetaEUint(thetaEnco_raw - thetaEnco_raw_offset));
+        thetaCal_setTheta_noWrap(&CH1_thetaI, CH1_thetaE_inter);
         thetaCal_setTheta(&CH1_thetaU, thetaComp(thetaCal_getTheta(&CH1_thetaI), omegaEcal.omegaE));
         targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
         break;
 
     case AM_sync:
-        thetaCal_setTheta_Uint(&CH1_thetaI, getThetaEUint(thetaEnco_raw - thetaEnco_raw_offset));
+        thetaCal_setTheta_noWrap(&CH1_thetaI, CH1_thetaE_inter);
         thetaCal_setTheta_noWrap(&CH1_thetaU, thetaCal_getTheta(&CH1_thetaI));
         targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
         break;
@@ -686,13 +721,6 @@ static inline void sigSampTask()
 
         thetaEst = (CH1_Ifbk.d * CH1_Ifilt2.q - CH1_Ifbk.q * CH1_Ifilt2.d) * (float)(1.0f / MATLAB_PARA_RDC2ELE_RATIO) / CH1_Ifilt2.abs2;
         thetaEst2 = LMSanfUpdate(&LMSanfThetaM, thetaEnco_raw, thetaEst);
-    }
-
-    if (CH1_angle_mode2 & 0x8u)
-    {
-        // 位置误差在线补偿
-        MRAS_wr_update(&MRASwr, &CH1_Utar, &CH1_Ifbk);
-        KFw_update(&KFw, MRASwr.thetaOut * (float)(2.0 * M_PI), CH1_thetaI.theta * (float)(2.0 * M_PI));
     }
 }
 
@@ -1014,7 +1042,17 @@ static inline void curLoopTask()
         break;
 
     case CM_I_loop:
-        if (CH1_ext_fcn & 0x2u)
+        // 虽增加平均计算量，但方便debug，且不影响峰值计算量
+        PsiLUT(&CH1_Ifilt, &CH1_Psi);
+        CH1_Ld4PI = Ld1dLUT(CH1_Ifilt.d);
+        CH1_Lq4PI = Lq1dLUT(CH1_Ifilt.q);
+        if (CH1_ext_fcn & 0x8u)
+        {
+            CH1_Ud_comp = -CH1_Psi.q * omegaEcal.omegaE;
+            CH1_Uq_comp = CH1_Psi.d * omegaEcal.omegaE;
+
+        }
+        else if (CH1_ext_fcn & 0x2u)
         {
             CH1_Ud_comp = -CH1_Ifilt.q * Lq4Icomp * omegaEcal.omegaE;
             CH1_Uq_comp = (CH1_Ifilt.d * Ld4Icomp + Faif4Icomp) * omegaEcal.omegaE;
@@ -1023,6 +1061,12 @@ static inline void curLoopTask()
         {
             CH1_Ud_comp = 0;
             CH1_Uq_comp = 0;
+        }
+
+        if (CH1_ext_fcn & 0x8u)
+        {
+            PIctrl_Iloop_cfg(&CH1_IdPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Ld, MRASwr.Rs, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
+            PIctrl_Iloop_cfg(&CH1_IqPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Lq, MRASwr.Rs, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
         }
 
         CH1_Utar.d = PIctrl_update_clamp2(&CH1_IdPI, targetId_CH1 - CH1_Ifilt.d) + CH1_Ud_comp;

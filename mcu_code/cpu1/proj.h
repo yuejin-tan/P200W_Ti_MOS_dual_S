@@ -102,12 +102,31 @@ extern struct encoder_struct encoder2;
 extern struct DRV8305_struct drv8305_1;
 extern struct DRV8305_struct drv8305_2;
 
+// 磁链标定与LUT补偿
+extern struct LPF_Ord1_2_struct CH1_UTarFiltd;
+extern struct LPF_Ord1_2_struct CH1_UTarFiltq;
+extern struct Trans_struct CH1_UFilt;
+extern struct Trans_struct CH1_psi;
+
+extern float CH1_Ld4PI;
+extern float CH1_Lq4PI;
+extern float CH1_thetaE_inter;
+
 // 位置谐波
 extern struct LMSanf_struct LMSanfThetaM;
 extern struct LPF_Ord1_2_struct CH1_IdFilt_2;
 extern struct LPF_Ord1_2_struct CH1_IqFilt_2;
 extern struct Trans_struct CH1_Ifilt2;
 
+// 位置误差在线补偿
+extern struct PIctrl_struct wPI;
+extern struct PIctrl_struct RsPI;
+extern struct MRASwr_struct MRASwr;
+extern struct Trans_struct CH1_Psi;
+
+extern struct KFw_struct KFw;
+
+// bit0 注入谐波 bit1 补偿谐波 bit2 谐波辨识 bit3 在线补偿 bit4 位置切换
 extern int16_t CH1_angle_mode2;
 
 extern int16_t rdc_inj_raw;
