@@ -120,8 +120,7 @@ struct DRV8305_struct drv8305_2;
 // 磁链标定与LUT补偿
 struct LPF_Ord1_2_struct CH1_UTarFiltd;
 struct LPF_Ord1_2_struct CH1_UTarFiltq;
-struct Trans_struct CH1_UFilt;
-struct Trans_struct CH1_psi;
+struct Trans_struct CH1_Psi;
 
 float CH1_Ld4PI = MATLAB_PARA_Ld;
 float CH1_Lq4PI = MATLAB_PARA_Lq;
@@ -137,7 +136,6 @@ struct Trans_struct CH1_Ifilt2;
 struct PIctrl_struct wPI;
 struct PIctrl_struct RsPI;
 struct MRASwr_struct MRASwr;
-struct Trans_struct CH1_Psi;
 
 struct KFw_struct KFw;
 
@@ -494,7 +492,7 @@ static void cfg_clk_util(uint16_t pwm_freq)
     // 位置误差在线补偿
     PIctrl_init(&wPI, 100, 10000, 0, 0, 0);
     PIctrl_init(&RsPI, 0, 0.0005, 0, MATLAB_PARA_Rall * 3.0, MATLAB_PARA_Rall * 0.3);
-    MRAS_wr_init(&MRASwr, &wPI, &RsPI, 6.28 * 20.0, MATLAB_PARA_Rall, 4.0);
+    MRAS_wr_init(&MRASwr, &wPI, &RsPI, 6.28 * 10.0, MATLAB_PARA_Rall, 4.0);
 
     KFw_init(&KFw, 1, (2.0 * M_PI * 2.0 * M_PI / 12.0), 2e-4, 2e-3, 1e-4);
 }
@@ -579,8 +577,8 @@ static inline void sigSampTask()
     }
 
     // 磁链标定用电压变换，刚好在此周期生效
-    CH1_UFilt.d = LPF_Ord2_update(&CH1_UTarFiltd, CH1_Utar.d);
-    CH1_UFilt.q = LPF_Ord2_update(&CH1_UTarFiltq, CH1_Utar.q);
+    LPF_Ord2_update(&CH1_UTarFiltd, CH1_Utar.d);
+    LPF_Ord2_update(&CH1_UTarFiltq, CH1_Utar.q);
 
     // ADC signals
     CH1_Iu_raw = bsp_get_CH1_Iu_adcRaw();
@@ -619,6 +617,7 @@ static inline void sigSampTask()
 
         if (CH1_angle_mode2 & 0x10u)
         {
+            // 使用来自卡尔曼滤波的角度信号
             CH1_thetaE_inter = KFw.x_k[0] * (float)(1.0 / 2.0 / M_PI);
             speedCal_assign(&omegaEcal, KFw.x_k[1]);
         }
@@ -1063,10 +1062,10 @@ static inline void curLoopTask()
             CH1_Uq_comp = 0;
         }
 
-        if (CH1_ext_fcn & 0x8u)
+        if (CH1_ext_fcn & 0x10u)
         {
-            PIctrl_Iloop_cfg(&CH1_IdPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Ld, MRASwr.Rs, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
-            PIctrl_Iloop_cfg(&CH1_IqPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Lq, MRASwr.Rs, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
+            PIctrl_Iloop_cfg2(&CH1_IdPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Ld, MRASwr.Rs);
+            PIctrl_Iloop_cfg2(&CH1_IqPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Lq, MRASwr.Rs);
         }
 
         CH1_Utar.d = PIctrl_update_clamp2(&CH1_IdPI, targetId_CH1 - CH1_Ifilt.d) + CH1_Ud_comp;

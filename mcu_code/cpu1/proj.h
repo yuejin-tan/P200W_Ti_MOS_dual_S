@@ -105,8 +105,7 @@ extern struct DRV8305_struct drv8305_2;
 // 磁链标定与LUT补偿
 extern struct LPF_Ord1_2_struct CH1_UTarFiltd;
 extern struct LPF_Ord1_2_struct CH1_UTarFiltq;
-extern struct Trans_struct CH1_UFilt;
-extern struct Trans_struct CH1_psi;
+extern struct Trans_struct CH1_Psi;
 
 extern float CH1_Ld4PI;
 extern float CH1_Lq4PI;
@@ -122,7 +121,6 @@ extern struct Trans_struct CH1_Ifilt2;
 extern struct PIctrl_struct wPI;
 extern struct PIctrl_struct RsPI;
 extern struct MRASwr_struct MRASwr;
-extern struct Trans_struct CH1_Psi;
 
 extern struct KFw_struct KFw;
 

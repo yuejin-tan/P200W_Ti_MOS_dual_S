@@ -87,6 +87,9 @@
 #include "oeca.h"
 #include "adrc.h"
 #include "lms_anf.h"
+#include "MRASwr.h"
+#include "kalmanFilt_w.h"
+#include "psi_lut.h"
 
 #include "proj.h"
 
@@ -173,6 +176,19 @@ SCD_REG_ADD(LMSanfThetaM.W[2], float)
 SCD_REG_ADD(LMSanfThetaM.W[3], float)
 SCD_REG_ADD(LMSanfThetaM.W[4], float)
 SCD_REG_ADD(LMSanfThetaM.W[5], float)
+SCD_REG_ADD(CH1_Ld4PI, float)
+SCD_REG_ADD(CH1_Lq4PI, float)
+SCD_REG_ADD(CH1_thetaE_inter, float)
+SCD_REG_ADD(MRASwr.We, float)
+SCD_REG_ADD(MRASwr.Rs, float)
+SCD_REG_ADD(MRASwr.thetaOut, float)
+SCD_REG_ADD(KFw.x_k[0], float)
+SCD_REG_ADD(KFw.x_k[1], float)
+SCD_REG_ADD(KFw.x_k[2], float)
+SCD_REG_ADD(KFw.R_tr[0], float)
+SCD_REG_ADD(KFw.R_tr[1], float)
+SCD_REG_ADD(KFw.err[0], float)
+SCD_REG_ADD(KFw.err[1], float)
 SCD_REG_ADD(thetaEnco_raw_offset, uint16_t)
 SCD_REG_ADD(thetaEnco_raw_offset2, uint16_t)
 SCD_REG_ADD(adcOffset_init, function)
