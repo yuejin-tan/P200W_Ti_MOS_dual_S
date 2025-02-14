@@ -481,8 +481,8 @@ static void cfg_clk_util(uint16_t pwm_freq)
     PIctrl_Iloop_cfg(&CH2_IqPI, MATLAB_PARA_Iloop_bw_factor, DYNO_PARA_Lq, DYNO_PARA_Rall, MATLAB_PARA_Upi_max, -MATLAB_PARA_Upi_max);
 
     // 磁链标定
-    LPF_Ord1_2_cfg(&CH1_UTarFiltd, LPF_KAHAN_2_t, vCTRL_TS, 10.0, 0);
-    LPF_Ord1_2_cfg(&CH1_UTarFiltq, LPF_KAHAN_2_t, vCTRL_TS, 10.0, 0);
+    LPF_Ord1_2_cfg(&CH1_UTarFiltd, LPF_KAHAN_1_t, vCTRL_TS, 20.0, 0);
+    LPF_Ord1_2_cfg(&CH1_UTarFiltq, LPF_KAHAN_1_t, vCTRL_TS, 20.0, 0);
 
     // 位置误差提取
     LMSanfInit(&LMSanfThetaM);
@@ -577,8 +577,8 @@ static inline void sigSampTask()
     }
 
     // 磁链标定用电压变换，刚好在此周期生效
-    LPF_Ord2_update(&CH1_UTarFiltd, CH1_Utar.d);
-    LPF_Ord2_update(&CH1_UTarFiltq, CH1_Utar.q);
+    LPF_Ord1_update_kahan(&CH1_UTarFiltd, CH1_Utar.d);
+    LPF_Ord1_update_kahan(&CH1_UTarFiltq, CH1_Utar.q);
 
     // ADC signals
     CH1_Iu_raw = bsp_get_CH1_Iu_adcRaw();
@@ -1064,12 +1064,12 @@ static inline void curLoopTask()
 
         if (CH1_ext_fcn & 0x10u)
         {
-            PIctrl_Iloop_cfg2(&CH1_IdPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Ld, MRASwr.Rs);
-            PIctrl_Iloop_cfg2(&CH1_IqPI, MATLAB_PARA_Iloop_bw_factor, MATLAB_PARA_Lq, MRASwr.Rs);
+            PIctrl_Iloop_cfg2(&CH1_IdPI, MATLAB_PARA_Iloop_bw_factor, CH1_Ld4PI, MRASwr.Rs);
+            PIctrl_Iloop_cfg2(&CH1_IqPI, MATLAB_PARA_Iloop_bw_factor, CH1_Lq4PI, MRASwr.Rs);
         }
 
-        CH1_Utar.d = PIctrl_update_clamp2(&CH1_IdPI, targetId_CH1 - CH1_Ifilt.d) + CH1_Ud_comp;
-        CH1_Utar.q = PIctrl_update_clamp2(&CH1_IqPI, targetIq_CH1 - CH1_Ifilt.q) + CH1_Uq_comp;
+        CH1_Utar.d = PIctrl_update_clamp_comp2(&CH1_IdPI, targetId_CH1 - CH1_Ifilt.d, CH1_Ud_comp);
+        CH1_Utar.q = PIctrl_update_clamp_comp2(&CH1_IqPI, targetIq_CH1 - CH1_Ifilt.q, CH1_Uq_comp);
 
     case CM_svpwm:
         if (CH1_ext_fcn & 0x1u)
@@ -1088,7 +1088,7 @@ static inline void curLoopTask()
             PIctrl_svpwmBoundSet(&CH1_IqPI, Usv_max);
         }
         trans2_dq2albe(&CH1_Utar, &CH1_thetaU);
-        CH1_cur_sta = SVPWM_dutyCal(&CH1_svpwm, CH1_Utar.al, CH1_Utar.be);
+        CH1_cur_sta |= SVPWM_dutyCal(&CH1_svpwm, CH1_Utar.al, CH1_Utar.be);
         if (CH1_ext_fcn & 0x4u)
         {
             // 死区补偿 part2
@@ -1144,8 +1144,8 @@ static inline void curLoopTask2()
             CH2_Uq_comp = 0;
         }
 
-        CH2_Utar.d = PIctrl_update_clamp2(&CH2_IdPI, targetId_CH2 - CH2_Ifilt.d) + CH2_Ud_comp;
-        CH2_Utar.q = PIctrl_update_clamp2(&CH2_IqPI, targetIq_CH2 - CH2_Ifilt.q) + CH2_Uq_comp;
+        CH2_Utar.d = PIctrl_update_clamp_comp2(&CH2_IdPI, targetId_CH2 - CH2_Ifilt.d, CH2_Ud_comp);
+        CH2_Utar.q = PIctrl_update_clamp_comp2(&CH2_IqPI, targetIq_CH2 - CH2_Ifilt.q, CH2_Uq_comp);
 
     case CM_svpwm:
         if (CH2_ext_fcn & 0x1u)
@@ -1164,7 +1164,7 @@ static inline void curLoopTask2()
             PIctrl_svpwmBoundSet(&CH2_IqPI, Usv_max2);
         }
         trans2_dq2albe(&CH2_Utar, &CH2_thetaU);
-        CH2_cur_sta = SVPWM_dutyCal(&CH2_svpwm, CH2_Utar.al, CH2_Utar.be);
+        CH2_cur_sta |= SVPWM_dutyCal(&CH2_svpwm, CH2_Utar.al, CH2_Utar.be);
         if (CH2_ext_fcn & 0x4u)
         {
             // 死区补偿 part2
