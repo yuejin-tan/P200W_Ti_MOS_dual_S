@@ -145,10 +145,17 @@ int16_t CH1_angle_mode2 = 0;
 int16_t rdc_inj_raw = 0;
 int16_t rdc_comp_raw = 0;
 
+uint16_t thetaRaw_inter = 0;
+
+float CH1_thetaE_sensor = 0;
+float dbgErr_MARS = 0;
+float dbgErr_KFw = 0;
+float dbgErr_Sensor = 0;
+
 float rdc_inj_all = 0;
 float rdc_comp_all = 0;
 float thetaEst = 0;
-float thetaEst2 = 0;
+float thetaEstFilt = 0;
 
 float rdc_Acos_1 = -4.3545e-04;
 float rdc_Asin_1 = 0.0020;
@@ -361,11 +368,11 @@ int16_t channel_mode2 = 0;
 
 float targetTe = 0.0f;
 float targetIs = 0.0f;
-float targetThetaMTPA = 0.3333333f;
+float targetThetaMTPA = 0.25f;
 
 float targetTe2 = 0.0f;
 float targetIs2 = 0.0f;
-float targetThetaMTPA2 = 0.3333333f;
+float targetThetaMTPA2 = 0.25f;
 
 float targetN = 0.0f;
 float targetOmegaM = 0.0f;
@@ -491,7 +498,7 @@ static void cfg_clk_util(uint16_t pwm_freq)
 
     // 位置误差在线补偿
     PIctrl_init(&wPI, 100, 10000, 0, 0, 0);
-    PIctrl_init(&RsPI, 0, 0.0005, 0, MATLAB_PARA_Rall * 3.0, MATLAB_PARA_Rall * 0.3);
+    PIctrl_init(&RsPI, 0, 0.0001, 0, MATLAB_PARA_Rall * 3.0, MATLAB_PARA_Rall * 0.3);
     MRAS_wr_init(&MRASwr, &wPI, &RsPI, 6.28 * 10.0, MATLAB_PARA_Rall, 4.0);
 
     KFw_init(&KFw, 1, (2.0 * M_PI * 2.0 * M_PI / 12.0), 2e-4, 2e-3, 1e-4);
@@ -564,8 +571,12 @@ static inline void sigSampTask()
             harmCalcUtil(thetaEnco_raw, 2, rdc_Acos_2, rdc_Asin_2) +
             harmCalcUtil(thetaEnco_raw, 4, rdc_Acos_4, rdc_Asin_4);
         rdc_inj_raw = rdc_inj_all * (float)(65536.0 / M_PI / 2.0);
-        thetaEnco_raw += rdc_inj_raw;
     }
+    else
+    {
+        rdc_inj_raw = 0;
+    }
+
     if (CH1_angle_mode2 & 0x2u)
     {
         // 是否补偿谐波
@@ -573,12 +584,13 @@ static inline void sigSampTask()
             harmCalcUtil(thetaEnco_raw, 2, LMSanfThetaM.W[2], LMSanfThetaM.W[3]) +
             harmCalcUtil(thetaEnco_raw, 4, LMSanfThetaM.W[4], LMSanfThetaM.W[5]);
         rdc_comp_raw = rdc_comp_all * (float)(65536.0 / M_PI / 2.0);
-        thetaEnco_raw -= rdc_comp_raw;
+    }
+    else
+    {
+        rdc_comp_raw = 0;
     }
 
-    // 磁链标定用电压变换，刚好在此周期生效
-    LPF_Ord1_update_kahan(&CH1_UTarFiltd, CH1_Utar.d);
-    LPF_Ord1_update_kahan(&CH1_UTarFiltq, CH1_Utar.q);
+    thetaRaw_inter = thetaEnco_raw - thetaEnco_raw_offset + rdc_inj_raw - rdc_comp_raw;
 
     // ADC signals
     CH1_Iu_raw = bsp_get_CH1_Iu_adcRaw();
@@ -604,52 +616,6 @@ static inline void sigSampTask()
     CH1_Udc = LPF_Ord2_update(&CH1_UdcFilt, CH1_Udc_SI);
 
     // Pdc = LPF_Ord2_update(&PdcFilt, CH1_Udc * CH1_Idc);
-
-    // calculate omega 可以用上次的角度值，区别不大
-    omegaMfbk = speedCal_update(&omegaEcal, getThetaEUint(thetaEnco_raw)) * (float)(1.0 / MATLAB_PARA_RDC2ELE_RATIO);
-    CH1_thetaE_inter = getThetaEpu(thetaEnco_raw - thetaEnco_raw_offset);
-
-    if (CH1_angle_mode2 & 0x8u)
-    {
-        // 位置误差在线补偿
-        MRAS_wr_update(&MRASwr, &CH1_Utar, &CH1_Ifbk);
-        KFw_update(&KFw, MRASwr.thetaOut * (float)(2.0 * M_PI), getThetaESI(thetaEnco_raw - thetaEnco_raw_offset));
-
-        if (CH1_angle_mode2 & 0x10u)
-        {
-            // 使用来自卡尔曼滤波的角度信号
-            CH1_thetaE_inter = KFw.x_k[0] * (float)(1.0 / 2.0 / M_PI);
-            speedCal_assign(&omegaEcal, KFw.x_k[1]);
-        }
-    }
-
-    // 角度计算
-    switch (CH1_angle_mode)
-    {
-    case AM_sync_comp:
-        thetaCal_setTheta_noWrap(&CH1_thetaI, CH1_thetaE_inter);
-        thetaCal_setTheta(&CH1_thetaU, thetaComp(thetaCal_getTheta(&CH1_thetaI), omegaEcal.omegaE));
-        targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
-        break;
-
-    case AM_sync:
-        thetaCal_setTheta_noWrap(&CH1_thetaI, CH1_thetaE_inter);
-        thetaCal_setTheta_noWrap(&CH1_thetaU, thetaCal_getTheta(&CH1_thetaI));
-        targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
-        break;
-
-    case AM_self_inc:
-        thetaCal_setTheta(&CH1_thetaU, thetaCal_getTheta(&CH1_thetaU) + thetaEInc);
-        thetaCal_setTheta_noWrap(&CH1_thetaI, thetaCal_getTheta(&CH1_thetaU));
-        targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
-        break;
-
-    case AM_manual:
-    default:
-        thetaCal_setTheta(&CH1_thetaU, targetThetaE_CH1);
-        thetaCal_setTheta(&CH1_thetaI, targetThetaE_CH1);
-        break;
-    }
 
     // 电流变换，使用3相降低零漂影响
     // 由于是下桥臂电阻采样，时间太短的000矢量将使采样失真，故结合上周期的发波情况进行补偿
@@ -697,8 +663,62 @@ static inline void sigSampTask()
         }
     }
 
-    trans3_uvw2dq0(&CH1_Ifbk, &CH1_thetaI);
-    transX_dq2abs2(&CH1_Ifbk);
+    trans3_uvw2albe0(&CH1_Ifbk);
+    transX_albe2abs2(&CH1_Ifbk);
+
+    // calculate omega 可以用上次的角度值，区别不大
+    omegaMfbk = speedCal_update(&omegaEcal, getThetaEUint(thetaRaw_inter)) * (float)(1.0 / MATLAB_PARA_RDC2ELE_RATIO);
+
+    CH1_thetaE_inter = getThetaEpu(thetaRaw_inter);
+    CH1_thetaE_sensor = getThetaEpu(thetaEnco_raw - thetaEnco_raw_offset);
+    dbgErr_Sensor = thetaCal_util_angle_norm2(CH1_thetaE_sensor - CH1_thetaE_inter);
+
+    if (CH1_angle_mode2 & 0x8u)
+    {
+        // 位置误差在线补偿
+        MRAS_wr_update(&MRASwr, &CH1_Utar, &CH1_Ifbk);
+        KFw_update(&KFw, MRASwr.thetaOut * (float)(2.0 * M_PI), getThetaESI(thetaRaw_inter));
+
+        dbgErr_MARS = thetaCal_util_angle_norm2(CH1_thetaE_sensor - MRASwr.thetaOut);
+        dbgErr_KFw = thetaCal_util_angle_norm2(CH1_thetaE_sensor - KFw.thetaOutPu);
+
+        if (CH1_angle_mode2 & 0x10u)
+        {
+            // 使用来自卡尔曼滤波的角度信号
+            CH1_thetaE_inter = KFw.thetaOutPu;
+            speedCal_assign(&omegaEcal, KFw.x_k[1]);
+        }
+    }
+
+    // 角度计算
+    switch (CH1_angle_mode)
+    {
+    case AM_sync_comp:
+        thetaCal_setTheta_noWrap(&CH1_thetaI, CH1_thetaE_inter);
+        thetaCal_setTheta(&CH1_thetaU, thetaComp(thetaCal_getTheta(&CH1_thetaI), omegaEcal.omegaE));
+        targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
+        break;
+
+    case AM_sync:
+        thetaCal_setTheta_noWrap(&CH1_thetaI, CH1_thetaE_inter);
+        thetaCal_setTheta_noWrap(&CH1_thetaU, thetaCal_getTheta(&CH1_thetaI));
+        targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
+        break;
+
+    case AM_self_inc:
+        thetaCal_setTheta(&CH1_thetaU, thetaCal_getTheta(&CH1_thetaU) + thetaEInc);
+        thetaCal_setTheta_noWrap(&CH1_thetaI, thetaCal_getTheta(&CH1_thetaU));
+        targetThetaE_CH1 = thetaCal_getTheta(&CH1_thetaI);
+        break;
+
+    case AM_manual:
+    default:
+        thetaCal_setTheta(&CH1_thetaU, targetThetaE_CH1);
+        thetaCal_setTheta(&CH1_thetaI, targetThetaE_CH1);
+        break;
+    }
+
+    trans3_albe02dq0(&CH1_Ifbk, &CH1_thetaI);
     CH1_Ifilt.d = LPF_Ord2_update(&CH1_IdFilt, CH1_Ifbk.d);
     CH1_Ifilt.q = LPF_Ord2_update(&CH1_IqFilt, CH1_Ifbk.q);
     CH1_Ifilt.abdq0 = LPF_Ord2_update(&CH1_I0Filt, CH1_Ifbk.abdq0);
@@ -710,6 +730,10 @@ static inline void sigSampTask()
     // 使用电压的角度，以补偿控制造成的延后（有待证明？）
     trans2_dq2uvw(&CH1_Ifilt, &CH1_thetaU);
 
+    // 磁链标定用电压滤波
+    LPF_Ord1_update_kahan(&CH1_UTarFiltd, CH1_Utar.d);
+    LPF_Ord1_update_kahan(&CH1_UTarFiltq, CH1_Utar.q);
+
     if (CH1_angle_mode2 & 0x4u)
     {
         // 误差辨识
@@ -719,7 +743,7 @@ static inline void sigSampTask()
         CH1_Ifilt2.abs2 = fmaxf(transX_dq2abs2(&CH1_Ifilt2), 1.0f);
 
         thetaEst = (CH1_Ifbk.d * CH1_Ifilt2.q - CH1_Ifbk.q * CH1_Ifilt2.d) * (float)(1.0f / MATLAB_PARA_RDC2ELE_RATIO) / CH1_Ifilt2.abs2;
-        thetaEst2 = LMSanfUpdate(&LMSanfThetaM, thetaEnco_raw, thetaEst);
+        thetaEstFilt = LMSanfUpdate(&LMSanfThetaM, thetaEnco_raw, thetaEst);
     }
 }
 
@@ -754,37 +778,6 @@ static inline void sigSampTask2()
     CH2_Udc = LPF_Ord2_update(&CH2_UdcFilt, CH2_Udc_SI);
 
     // Pdc2 = LPF_Ord2_update(&PdcFilt2, CH2_Udc * CH2_Idc);
-
-    // calculate omega 可以用上次的角度值，区别不大
-    omegaMfbk2 = speedCal_update(&omegaEcal2, getThetaEUint(thetaEnco_raw2)) * (float)(1.0 / MATLAB_PARA_RDC2ELE_RATIO);
-
-    // 角度计算
-    switch (CH2_angle_mode)
-    {
-    case AM_sync_comp:
-        thetaCal_setTheta_Uint(&CH2_thetaI, getThetaEUint(thetaEnco_raw2 - thetaEnco_raw_offset2));
-        thetaCal_setTheta(&CH2_thetaU, thetaComp(thetaCal_getTheta(&CH2_thetaI), omegaEcal2.omegaE));
-        targetThetaE_CH2 = thetaCal_getTheta(&CH2_thetaI);
-        break;
-
-    case AM_sync:
-        thetaCal_setTheta_Uint(&CH2_thetaI, getThetaEUint(thetaEnco_raw2 - thetaEnco_raw_offset2));
-        thetaCal_setTheta_noWrap(&CH2_thetaU, thetaCal_getTheta(&CH2_thetaI));
-        targetThetaE_CH2 = thetaCal_getTheta(&CH2_thetaI);
-        break;
-
-    case AM_self_inc:
-        thetaCal_setTheta(&CH2_thetaU, thetaCal_getTheta(&CH2_thetaU) + thetaEInc2);
-        thetaCal_setTheta_noWrap(&CH2_thetaI, thetaCal_getTheta(&CH2_thetaU));
-        targetThetaE_CH2 = thetaCal_getTheta(&CH2_thetaI);
-        break;
-
-    case AM_manual:
-    default:
-        thetaCal_setTheta(&CH2_thetaU, targetThetaE_CH2);
-        thetaCal_setTheta(&CH2_thetaI, targetThetaE_CH2);
-        break;
-    }
 
     // 电流变换，使用3相降低零漂影响
     // 由于是下桥臂电阻采样，时间太短的000矢量将使采样失真，故结合上周期的发波情况进行补偿
@@ -832,8 +825,41 @@ static inline void sigSampTask2()
         }
     }
 
-    trans3_uvw2dq0(&CH2_Ifbk, &CH2_thetaI);
-    transX_dq2abs2(&CH2_Ifbk);
+    trans3_uvw2albe0(&CH2_Ifbk);
+    transX_albe2abs2(&CH2_Ifbk);
+
+    // calculate omega 可以用上次的角度值，区别不大
+    omegaMfbk2 = speedCal_update(&omegaEcal2, getThetaEUint(thetaEnco_raw2)) * (float)(1.0 / MATLAB_PARA_RDC2ELE_RATIO);
+
+    // 角度计算
+    switch (CH2_angle_mode)
+    {
+    case AM_sync_comp:
+        thetaCal_setTheta_Uint(&CH2_thetaI, getThetaEUint(thetaEnco_raw2 - thetaEnco_raw_offset2));
+        thetaCal_setTheta(&CH2_thetaU, thetaComp(thetaCal_getTheta(&CH2_thetaI), omegaEcal2.omegaE));
+        targetThetaE_CH2 = thetaCal_getTheta(&CH2_thetaI);
+        break;
+
+    case AM_sync:
+        thetaCal_setTheta_Uint(&CH2_thetaI, getThetaEUint(thetaEnco_raw2 - thetaEnco_raw_offset2));
+        thetaCal_setTheta_noWrap(&CH2_thetaU, thetaCal_getTheta(&CH2_thetaI));
+        targetThetaE_CH2 = thetaCal_getTheta(&CH2_thetaI);
+        break;
+
+    case AM_self_inc:
+        thetaCal_setTheta(&CH2_thetaU, thetaCal_getTheta(&CH2_thetaU) + thetaEInc2);
+        thetaCal_setTheta_noWrap(&CH2_thetaI, thetaCal_getTheta(&CH2_thetaU));
+        targetThetaE_CH2 = thetaCal_getTheta(&CH2_thetaI);
+        break;
+
+    case AM_manual:
+    default:
+        thetaCal_setTheta(&CH2_thetaU, targetThetaE_CH2);
+        thetaCal_setTheta(&CH2_thetaI, targetThetaE_CH2);
+        break;
+    }
+
+    trans3_albe02dq0(&CH2_Ifbk, &CH2_thetaI);
     CH2_Ifilt.d = LPF_Ord2_update(&CH2_IdFilt, CH2_Ifbk.d);
     CH2_Ifilt.q = LPF_Ord2_update(&CH2_IqFilt, CH2_Ifbk.q);
     CH2_Ifilt.abdq0 = LPF_Ord2_update(&CH2_I0Filt, CH2_Ifbk.abdq0);

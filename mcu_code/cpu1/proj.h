@@ -130,10 +130,17 @@ extern int16_t CH1_angle_mode2;
 extern int16_t rdc_inj_raw;
 extern int16_t rdc_comp_raw;
 
+extern uint16_t thetaRaw_inter;
+
+extern float CH1_thetaE_sensor;
+extern float dbgErr_MARS;
+extern float dbgErr_KFw;
+extern float dbgErr_Sensor;
+
 extern float rdc_inj_all;
 extern float rdc_comp_all;
 extern float thetaEst;
-extern float thetaEst2;
+extern float thetaEstFilt;
 
 extern float rdc_Acos_1;
 extern float rdc_Asin_1;
