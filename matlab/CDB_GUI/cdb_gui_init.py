@@ -3,6 +3,7 @@ from cdb_dstruct_init import *
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+import scipy.io
 from PyQt5 import QtCore, QtGui, QtWidgets
 from canlib import canlib, Frame
 import sys
@@ -34,7 +35,7 @@ matplotlib.use("Qt5Agg")
 
 # 初始化界面
 
-VERSION_STR = "CDB_GUI V0.3.1"
+VERSION_STR = "CDB_GUI V0.3.2"
 
 
 class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
@@ -301,13 +302,29 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
             self.drawCheckBoxList[ii].setChecked(False)
 
     def toWorkspaceSlot(self):
-        global gExportDict
+        global totalCycle
+        global IsrFreq
+        global sampInter
+        global logTarNameList
+        global valYnpTab
+
         exportName = self.lineEdit_figTitle.text()
         if (exportName == ""):
-            exportName = datetime.datetime.now().strftime(
-                '[%Y-%m-%d, %H:%M:%S]')
-        # 浅复制即可
-        gExportDict[exportName] = valYnpTab.copy()
+            exportName = "default.mat"
+        if(not exportName.endswith('.mat')):
+            exportName += ".mat"
+        # 导出.mat
+        self.updateIsrFreqUtil()
+        timex = np.arange(totalCycle)/IsrFreq*(sampInter+1)
+
+        exportDict = {"time":timex}
+
+        for ii in range(logTarCnt):
+            if (self.drawCheckBoxList[ii].checkState()):
+                exportDict[logTarNameList[ii]]=valYnpTab[ii]
+
+        scipy.io.savemat(exportName, exportDict)
+
         print(datetime.datetime.now().strftime(
             '[%H:%M:%S.%f]')+f" export\"{exportName}\" fin!", file=sys.stderr)
         self.statusBar().showMessage(f"export\"{exportName}\" fin!", 1000)
@@ -1264,7 +1281,6 @@ if __name__ == "__main__":
         print("IsrFreq_init err!")
 
     advancedParaSetExecTime = time.time()
-    gExportDict = {}
 
     # 等待标记
     waitingFlg = False

@@ -18,4 +18,4 @@ conda activate can_dev
 
 conda install python
 
-pip install pyqt5 numpy matplotlib canlib pyinstaller pyqt5-tools pyqt5-stubs
+pip install pyqt5 numpy scipy matplotlib canlib pyinstaller pyqt5-tools pyqt5-stubs
