@@ -208,7 +208,7 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
         self.statusBar().showMessage("dump cfg ok!", 1000)
 
     def dumpSlot(self):
-        if(dumpBuff()):
+        if (dumpBuff()):
             return
 
         global totalCycle
@@ -311,17 +311,19 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
         exportName = self.lineEdit_figTitle.text()
         if (exportName == ""):
             exportName = "default.mat"
-        if(not exportName.endswith('.mat')):
+        if (not exportName.endswith('.mat')):
             exportName += ".mat"
         # 导出.mat
         self.updateIsrFreqUtil()
         timex = np.arange(totalCycle)/IsrFreq*(sampInter+1)
 
-        exportDict = {"time":timex}
+        exportDict = {"time": timex}
 
         for ii in range(logTarCnt):
             if (self.drawCheckBoxList[ii].checkState()):
-                exportDict[logTarNameList[ii]]=valYnpTab[ii]
+                # matlab 不认特殊符号
+                exportDict[logTarNameList[ii].replace(".", "_").replace(
+                    "[", "_").replace("]", "_")] = valYnpTab[ii]
 
         scipy.io.savemat(exportName, exportDict)
 
@@ -369,7 +371,7 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
                    datetime.datetime.now().strftime(' @ [%Y-%m-%d, %H:%M:%S] (fft)'))
 
         # 使用等幅值汉宁窗
-        if(fftUseHanningWin):
+        if (fftUseHanningWin):
             hanning_win_eq_amp = 1 - \
                 np.cos(2 * np.pi * np.arange(0, totalCycle, 1) / (totalCycle - 1))
 
@@ -381,7 +383,7 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
         for ii in range(logTarCnt):
             if (w.drawCheckBoxList[ii].checkState()):
                 # fft
-                if(fftUseHanningWin):
+                if (fftUseHanningWin):
                     X = np.fft.rfft(valYnpTab[ii]*hanning_win_eq_amp)
                 else:
                     X = np.fft.rfft(valYnpTab[ii])
@@ -655,7 +657,7 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
             case 5:
                 name = self.lineEdit_6.text()
 
-        if(self.checkBox_preRead.checkState()):
+        if (self.checkBox_preRead.checkState()):
             baseVal = readMCUVarUtil(name)
         else:
             try:
@@ -684,7 +686,7 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
             self.pushButton_normRun.setEnabled(True)
             return
 
-        if(len(srcList) < 1):
+        if (len(srcList) < 1):
             print(datetime.datetime.now().strftime(
                 '[%H:%M:%S.%f]')+" src val err!", file=sys.stderr)
             self.statusBar().showMessage("src val err!", 1000)
@@ -700,7 +702,7 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
         retVal = advancedParaSet(
             name, baseVal, mode, srcList, runStep, tickDurMs, idx)
 
-        if(self.checkBox_postOverwrite.checkState()):
+        if (self.checkBox_postOverwrite.checkState()):
             self.lineEdit_baseVal.setText(str(retVal))
 
         self.pushButton_preRun.setEnabled(True)
@@ -1191,12 +1193,12 @@ def advancedParaSet(name: str, baseVal: float, mode: int, srcList: list, runStep
 
     while (runStep != 0):
         # 等待时机
-        while(time.time() < advancedParaSetExecTime):
+        while (time.time() < advancedParaSetExecTime):
             # wait
             QtWidgets.QApplication.processEvents()
         # 更新时间
         advancedParaSetExecTime += tickDurMs*0.001
-        if(runStep > 0):
+        if (runStep > 0):
             # 计算更新值
             match mode:
                 case 0:
@@ -1222,7 +1224,7 @@ def advancedParaSet(name: str, baseVal: float, mode: int, srcList: list, runStep
                     setVal -= srcList[idx]
                 case 1:
                     # 对数
-                    if(srcList[idx] == 0):
+                    if (srcList[idx] == 0):
                         srcList[idx] = 1
                     setVal /= srcList[idx]
                 case 2:
