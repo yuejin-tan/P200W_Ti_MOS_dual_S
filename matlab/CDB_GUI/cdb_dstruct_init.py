@@ -3,16 +3,6 @@ import struct
 import time
 import os
 
-from canlib import canlib, Frame
-
-# 枚举CAN端口
-num_channels = canlib.getNumberOfChannels()
-print(f"Found {num_channels} channels")
-for ch in range(num_channels):
-    chd = canlib.ChannelData(ch)
-    print(f"{ch}. {chd.channel_name} ({chd.card_upc_no} / {chd.card_serial_no})")
-# 比特率
-cdbBitrate = canlib.Bitrate.BITRATE_1M
 
 # 建立变量字典
 varDict = {}
@@ -117,6 +107,33 @@ struct_info_dict = {
                       ("W[5]", 10, "float"),
                       ("mu", 12, "float"),
                       ),
+    "KFw_struct": (("thetaOutPu", 0, "float"),
+                   ("err[0]", 2, "float"),
+                   ("err[1]", 4, "float"),
+                   ("x_k[0]", 6, "float"),
+                   ("x_k[1]", 8, "float"),
+                   ("x_k[2]", 10, "float"),
+                   ("P_k[0]", 12, "float"),
+                   ("P_k[1]", 14, "float"),
+                   ("P_k[2]", 16, "float"),
+                   ("P_k[3]", 18, "float"),
+                   ("P_k[4]", 20, "float"),
+                   ("P_k[5]", 22, "float"),
+                   ("P_k[6]", 24, "float"),
+                   ("P_k[7]", 26, "float"),
+                   ("P_k[8]", 28, "float"),
+                   ("Q_tr[0]", 30, "float"),
+                   ("Q_tr[1]", 32, "float"),
+                   ("Q_tr[2]", 34, "float"),
+                   ("R_tr[3]", 36, "float"),
+                   ("R_tr[4]", 38, "float"),
+                   ("K[0]", 40, "float"),
+                   ("K[1]", 42, "float"),
+                   ("K[2]", 44, "float"),
+                   ("K[3]", 46, "float"),
+                   ("K[4]", 48, "float"),
+                   ("K[5]", 50, "float"),
+                   ),
 }
 
 

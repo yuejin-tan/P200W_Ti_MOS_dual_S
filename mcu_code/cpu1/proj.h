@@ -149,6 +149,8 @@ extern float rdc_Asin_2;
 extern float rdc_Acos_4;
 extern float rdc_Asin_4;
 
+extern float rdc_wNoise_gain;
+
 // 采样值
 extern int16_t CH1_Udc_raw;
 extern int16_t CH1_Idc_raw;

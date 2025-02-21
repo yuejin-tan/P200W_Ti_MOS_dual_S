@@ -35,7 +35,7 @@ matplotlib.use("Qt5Agg")
 
 # 初始化界面
 
-VERSION_STR = "CDB_GUI V0.3.2"
+VERSION_STR = "CDB_GUI V0.3.3"
 
 
 class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
@@ -1238,6 +1238,15 @@ def advancedParaSet(name: str, baseVal: float, mode: int, srcList: list, runStep
 
 ############## main ##############
 if __name__ == "__main__":
+    # 枚举CAN端口
+    num_channels = canlib.getNumberOfChannels()
+    print(f"Found {num_channels} channels")
+    for ch in range(num_channels):
+        chd = canlib.ChannelData(ch)
+        print(f"{ch}. {chd.channel_name} ({chd.card_upc_no} / {chd.card_serial_no})")
+    # 比特率
+    cdbBitrate = canlib.Bitrate.BITRATE_1M
+
     # 尝试打开端口
     # 保证变量全局性？
     ch = canlib.openChannel(
