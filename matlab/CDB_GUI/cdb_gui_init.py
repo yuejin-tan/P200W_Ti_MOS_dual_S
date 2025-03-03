@@ -320,7 +320,9 @@ class mainWindow(QtWidgets.QMainWindow, mainWin_ui.Ui_MainWindow):
         exportDict = {"time": timex}
 
         for ii in range(logTarCnt):
-            if (self.drawCheckBoxList[ii].checkState()):
+            # if (self.drawCheckBoxList[ii].checkState()):
+            # 不做判定，全部导入，在matlab处理就是了，以免漏选
+            if (True):
                 # matlab 不认特殊符号
                 exportDict[logTarNameList[ii].replace(".", "_").replace(
                     "[", "_").replace("]", "_")] = valYnpTab[ii]
