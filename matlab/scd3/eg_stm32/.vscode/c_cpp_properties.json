@@ -1,0 +1,30 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/CORE",
+                "${workspaceFolder}/SYSTEM/delay",
+                "${workspaceFolder}/SYSTEM/sys",
+                "${workspaceFolder}/SYSTEM/usart",
+                "${workspaceFolder}/USER",
+                "${workspaceFolder}/HARDWARE/**",
+                "${workspaceFolder}/FWLIB/inc",
+                "D:\\stm32\\GNU_ARM\\arm-none-eabi\\include"
+            ],
+            "defines": [
+                "DEBUG",
+                "STM32F40_41xxx",
+                "STM32F407xx",
+                "USE_STDPERIPH_DRIVER",
+                "USE_FULL_LL_DRIVER"
+            ],
+            "windowsSdkVersion": "10.0.17763.0",
+            "compilerPath": "D:\\stm32\\GNU_ARM\\bin\\arm-none-eabi-gcc.exe",
+            "cStandard": "gnu11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "gcc-arm"
+        }
+    ],
+    "version": 4
+}

@@ -113,6 +113,7 @@
 					</fileInfo>
 					<sourceEntries>
 						<entry excluding="matlab" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="matlab/SCD3"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
